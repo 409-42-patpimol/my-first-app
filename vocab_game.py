@@ -112,7 +112,7 @@ ans3 = st.text_input(
     "ข้อ 3: Monkey like to eat  `b a _ _ n a` . 🍌",
     value=st.session_state.ans3_val,
 )
-ans2 = st.text_input(
+ans4 = st.text_input(
     "ข้อ 4: A `l e _ o n`wakes you up. 🍋",
     value=st.session_state.ans4_val,
 )
