@@ -1,139 +1,176 @@
-import tkinter as tk
-from tkinter import messagebox
+import streamlit as st
+import time
 
-class Game24:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("เกม 24 (24 Game)")
-        self.root.geometry("450 x 550")
-        self.root.resizable(False, False)
+# ตั้งค่าหน้าเพจ
+st.set_page_config(page_title="เกม 24 (24 Game)", page_icon="🎮", layout="centered")
 
-        # ชุดโจทย์ตามที่กำหนด
-        self.questions = [
-            [1, 7, 4, 5],
-            [6, 2, 0, 8],
-            [5, 7, 3, 9],
-            [2, 6, 6, 3]
-        ]
-        self.current_q_idx = 0
-        self.time_left = 180  # เวลา 3 นาที (180 วินาที)
-        self.timer_running = False
+# ชุดโจทย์ตามที่กำหนด
+QUESTIONS = [
+    [1, 7, 4, 5],
+    [6, 2, 0, 8],
+    [5, 7, 3, 9],
+    [2, 6, 6, 3]
+]
 
-        self.setup_ui()
+# เริ่มต้น State ตัวแปรใน Session
+if "game_started" not in st.session_state:
+    st.session_state.game_started = False
+if "current_q" not in st.session_state:
+    st.session_state.current_q = 0
+if "score" not in st.session_state:
+    st.session_state.score = 0
+if "expression" not in st.session_state:
+    st.session_state.expression = ""
+if "start_time" not in st.session_state:
+    st.session_state.start_time = None
+if "game_over" not in st.session_state:
+    st.session_state.game_over = False
+if "feedback_msg" not in st.session_state:
+    st.session_state.feedback_msg = ""
 
-    def setup_ui(self):
-        # ส่วนหัวและเวลา
-        self.lbl_title = tk.Label(self.root, text="เกม 24", font=("Helvetica", 20, "bold"))
-        self.lbl_title.pack(pady=10)
+# ฟังก์ชันเริ่มต้นเกมใหม่
+def start_new_game():
+    st.session_state.game_started = True
+    st.session_state.current_q = 0
+    st.session_state.score = 0
+    st.session_state.expression = ""
+    st.session_state.start_time = time.time()
+    st.session_state.game_over = False
+    st.session_state.feedback_msg = ""
 
-        self.lbl_timer = tk.Label(self.root, text="เวลาเหลือ: 03:00", font=("Helvetica", 14), fg="red")
-        self.lbl_timer.pack(pady=5)
+# Header
+st.title("🎮 เกม 24 (24 Game)")
 
-        self.lbl_question_num = tk.Label(self.root, text="ข้อที่ 1 / 4", font=("Helvetica", 12))
-        self.lbl_question_num.pack(pady=5)
+# ---------------- หน้าจอตอนยังไม่เริ่มเล่น ----------------
+if not st.session_state.game_started and not st.session_state.game_over:
+    st.write("กติกา: ใช้ตัวเลขตามโจทย์และเครื่องหมายทางคณิตศาสตร์คำนวณให้ได้ผลลัพธ์เท่ากับ **24**")
+    st.write("มีทั้งหมด **4 ข้อ** ให้เวลาทำรวม **3 นาที**")
+    if st.button("🚀 เริ่มเล่นเกม", type="primary", use_container_width=True):
+        start_new_game()
+        st.rerun()
 
-        # แสดงตัวเลขโจทย์
-        self.lbl_numbers = tk.Label(self.root, text="กด 'เริ่มเล่น' เพื่อเริ่มเกม", font=("Helvetica", 18, "bold"), bg="#e0e0e0", width=25, height=2)
-        self.lbl_numbers.pack(pady=15)
+# ---------------- หน้าสรุปคะแนน (Game Over) ----------------
+elif st.session_state.game_over:
+    st.header("🏁 สรุปผลการแข่งขัน")
+    score = st.session_state.score
+    
+    st.subheader(f"คะแนนที่คุณได้: {score} / 4 คะแนน")
+    
+    # แสดงข้อความประเมินตามคะแนนที่ได้รับ
+    if score == 0:
+        st.error("😭 คุณแพ้")
+    elif score in [1, 2]:
+        st.warning("🙂 เกือบได้แล้ว")
+    elif score == 3:
+        st.info("😮 อีกนิดเดียวเสียดายจัง")
+    elif score == 4:
+        st.success("🎉 ว้าว เก่งสุดสุดเก่งขั้นเทพ")
 
-        # ช่องกรอก/แสดงสมการที่ผู้เล่นเลือก
-        self.entry_expr = tk.Entry(self.root, font=("Helvetica", 16), justify="center", state="disabled")
-        self.entry_expr.pack(pady=10, fill="x", padx=40)
+    st.write("---")
+    if st.button("🔄 เล่นใหม่อีกครั้ง", type="primary", use_container_width=True):
+        start_new_game()
+        st.rerun()
 
-        # ปุ่มเครื่องหมาย + - * / () และปุ่มลบ
-        frame_operators = tk.Frame(self.root)
-        frame_operators.pack(pady=10)
+# ---------------- หน้าเล่นเกม ----------------
+else:
+    # คำนวณเวลาถอยหลัง (3 นาที = 180 วินาที)
+    elapsed_time = time.time() - st.session_state.start_time
+    remaining_time = max(0, 180 - int(elapsed_time))
+    
+    mins, secs = divmod(remaining_time, 60)
+    
+    # ตรวจสอบว่าหมดเวลาหรือไม่
+    if remaining_time <= 0:
+        st.session_state.game_over = True
+        st.rerun()
 
-        ops = ['+', '-', '*', '/', '(', ')', 'Clear']
-        for op in ops:
-            if op == 'Clear':
-                btn = tk.Button(frame_operators, text=op, font=("Helvetica", 12, "bold"), width=6, bg="#ff6666", fg="white", command=self.clear_entry)
+    # แสดงแถบเวลาและสถานะข้อ
+    col_time, col_q = st.columns(2)
+    with col_time:
+        st.metric("⏳ เวลาที่เหลือ", f"{mins:02d}:{secs:02d}")
+    with col_q:
+        st.metric("📌 ข้อที่", f"{st.session_state.current_q + 1} / 4")
+
+    # แสดงโจทย์ตัวเลข
+    current_nums = QUESTIONS[st.session_state.current_q]
+    st.markdown(f"### ตัวเลขโจทย์: **{' , '.join(map(str, current_nums))}**")
+
+    # ช่องแสดงสมการที่ผู้เล่นสร้าง
+    st.text_input("สมการของคุณ:", value=st.session_state.expression, key="expr_input", disabled=True)
+
+    # ปุ่มสำหรับกดเครื่องหมายและลบ
+    st.write("เลือกเครื่องหมายเพื่อประกอบสมการ:")
+    btn_cols = st.columns(7)
+    operators = ['+', '-', '*', '/', '(', ')', 'ล้าง']
+    
+    for idx, op in enumerate(operators):
+        with btn_cols[idx]:
+            if op == 'ล้าง':
+                if st.button("❌ ล้าง", use_container_width=True):
+                    st.session_state.expression = ""
+                    st.session_state.feedback_msg = ""
+                    st.rerun()
             else:
-                btn = tk.Button(frame_operators, text=op, font=("Helvetica", 14, "bold"), width=3, command=lambda o=op: self.add_to_entry(o))
-            btn.pack(side="left", padx=3)
+                if st.button(op, use_container_width=True):
+                    st.session_state.expression += op
+                    st.session_state.feedback_msg = ""
+                    st.rerun()
 
-        # ปุ่มเริ่มเล่น และ ปุ่มส่งคำตอบ
-        frame_actions = tk.Frame(self.root)
-        frame_actions.pack(pady=20)
+    # ช่องให้พิมพ์ตัวเลข/แก้ไขเพิ่มเติมด้วยตัวเอง (Optional)
+    manual_expr = st.text_input("หรือพิมพ์สมการโดยตรงตรงนี้ (ใช้ตัวเลขจากโจทย์):", value=st.session_state.expression)
+    if manual_expr != st.session_state.expression:
+        st.session_state.expression = manual_expr
 
-        self.btn_start = tk.Button(frame_actions, text="เริ่มเล่น", font=("Helvetica", 12, "bold"), bg="#4CAF50", fg="white", width=10, command=self.start_game)
-        self.btn_start.pack(side="left", padx=10)
+    st.write("---")
 
-        self.btn_submit = tk.Button(frame_actions, text="ส่งคำตอบ", font=("Helvetica", 12, "bold"), bg="#2196F3", fg="white", width=10, state="disabled", command=self.check_answer)
-        self.btn_submit.pack(side="left", padx=10)
+    # แสดงข้อความแจ้งเตือนย่อยๆ
+    if st.session_state.feedback_msg:
+        st.error(st.session_state.feedback_msg)
 
-    def start_game(self):
-        self.current_q_idx = 0
-        self.time_left = 180
-        self.timer_running = True
-        self.btn_start.config(state="disabled")
-        self.btn_submit.config(state="normal")
-        self.entry_expr.config(state="normal")
-        
-        self.load_question()
-        self.update_timer()
-
-    def load_question(self):
-        if self.current_q_idx < len(self.questions):
-            nums = self.questions[self.current_q_idx]
-            self.lbl_question_num.config(text=f"ข้อที่ {self.current_q_idx + 1} / {len(self.questions)}")
-            self.lbl_numbers.config(text=f"ตัวเลข:  {nums[0]}   {nums[1]}   {nums[2]}   {nums[3]}")
-            self.clear_entry()
-        else:
-            self.timer_running = False
-            messagebox.showinfo("ยินดีด้วย!", "คุณตอบถูกครบทุกข้อแล้ว! เก่งมากครับ 🎉")
-            self.reset_game()
-
-    def update_timer(self):
-        if self.timer_running and self.time_left > 0:
-            mins, secs = divmod(self.time_left, 60)
-            self.lbl_timer.config(text=f"เวลาเหลือ: {mins:02d}:{secs:02d}")
-            self.time_left -= 1
-            self.root.after(1000, self.update_timer)
-        elif self.time_left == 0 and self.timer_running:
-            self.timer_running = False
-            messagebox.showwarning("หมดเวลา!", "หมดเวลา 3 นาทีแล้วครับ ลองใหม่อีกครั้งนะ!")
-            self.reset_game()
-
-    def add_to_entry(self, char):
-        if self.btn_submit['state'] == 'normal':
-            self.entry_expr.insert(tk.END, char)
-
-    def clear_entry(self):
-        self.entry_expr.delete(0, tk.END)
-
-    def check_answer(self):
-        user_input = self.entry_expr.get().strip()
-        if not user_input:
-            return
-
-        try:
-            # คำนวณผลลัพธ์จากสมการที่ผู้เล่นพิมพ์/กดเลือก
-            result = eval(user_input)
-            
-            # ตรวจสอบว่าผลลัพธ์เท่ากับ 24 หรือไม่ (ใช้ abs ป้องกันปัญหาทศนิยม)
-            if abs(result - 24) < 1e-6:
-                messagebox.showinfo("ถูกต้อง!", "ถูกต้องแล้วครับ! ไปข้อถัดไป")
-                self.current_q_idx += 1
-                self.load_question()
+    # ปุ่มส่งคำตอบและข้ามข้อ
+    col_sub, col_skip = st.columns(2)
+    
+    with col_sub:
+        if st.button("✅ ส่งคำตอบ", type="primary", use_container_width=True):
+            user_input = st.session_state.expression.strip()
+            if not user_input:
+                st.session_state.feedback_msg = "กรุณากรอกสมการก่อนส่งคำตอบ!"
+                st.rerun()
             else:
-                messagebox.showerror("ยังไม่ถูก", f"ผลลัพธ์ที่คุณได้คือ {result} (ยังไม่เท่ากับ 24) ลองใหม่อีกครั้ง!")
-        except ZeroDivisionError:
-            messagebox.showerror("ข้อผิดพลาด", "ไม่สามารถหารด้วย 0 ได้ครับ")
-        except Exception:
-            messagebox.showerror("ข้อผิดพลาด", "รูปแบบสมการไม่ถูกต้อง กรุณาตรวจสอบตัวเลขและเครื่องหมาย")
+                try:
+                    # คำนวณผลลัพธ์
+                    result = eval(user_input)
+                    
+                    # ตรวจสอบว่าคำตอบเท่ากับ 24 หรือไม่
+                    if abs(result - 24) < 1e-6:
+                        st.session_state.score += 1
+                        st.session_state.current_q += 1
+                        st.session_state.expression = ""
+                        st.session_state.feedback_msg = ""
+                        
+                        # หากทำครบ 4 ข้อ ให้จบเกม
+                        if st.session_state.current_q >= len(QUESTIONS):
+                            st.session_state.game_over = True
+                        st.rerun()
+                    else:
+                        st.session_state.feedback_msg = f"ยังไม่ถูก! ได้ผลลัพธ์คือ {result} (ยังไม่เท่ากับ 24)"
+                        st.rerun()
+                except ZeroDivisionError:
+                    st.session_state.feedback_msg = "ไม่สามารถหารด้วย 0 ได้!"
+                    st.rerun()
+                except Exception:
+                    st.session_state.feedback_msg = "รูปแบบสมการไม่ถูกต้อง!"
+                    st.rerun()
 
-    def reset_game(self):
-        self.timer_running = False
-        self.btn_start.config(state="normal")
-        self.btn_submit.config(state="disabled")
-        self.clear_entry()
-        self.entry_expr.config(state="disabled")
-        self.lbl_numbers.config(text="กด 'เริ่มเล่น' เพื่อเริ่มเกม")
-        self.lbl_timer.config(text="เวลาเหลือ: 03:00")
-        self.lbl_question_num.config(text="ข้อที่ 1 / 4")
+    with col_skip:
+        if st.button("⏩ ข้ามข้อนี้", use_container_width=True):
+            st.session_state.current_q += 1
+            st.session_state.expression = ""
+            st.session_state.feedback_msg = ""
+            if st.session_state.current_q >= len(QUESTIONS):
+                st.session_state.game_over = True
+            st.rerun()
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = Game24(root)
-    root.mainloop()
+    # Auto-refresh หน้าจอเพื่อให้เวลาถอยหลังแบบ Realtime
+    time.sleep(1)
+    st.rerun()
